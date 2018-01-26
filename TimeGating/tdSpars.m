@@ -4,7 +4,10 @@
 % Inputs:
 %   - freqs: frequency vector 
 %   - Spar: S parameter vector Nfreqs x 1 
-%   - pulse: string to indicate the pulse type: 'normal' (baseband), 'modulated' (gaussian), 'sinc'
+%   - pulse: cell array with
+%       - string to indicate the pulse type: 'normal' (baseband), 'modulated' (gaussian), 'sinc'
+%       - bandiwdth of the pulse (inverse of variance)
+%       - central frequency of the pulse (only relevant for modulated pulse)
 %   - varargin: possible fields include:
 %       - {win,[tini,tfin]}: cell with: window kind (string), initial and final times for windowing
 %       - Npad: multiplier for zero padding (time domain interpolation factor)
@@ -29,10 +32,11 @@ function Smod=tdSpars(freqs,Spars,pulsepar,varargin)
    
     % time delay from S pars, used as delay time for the pulse (\tau_d(f))
     tau_f=-unwrap(angle(Spars))./(2*pi*freqs);
-    td=max(tau_f)
+    %td=mean(tau_f(~isnan(tau_f)));%
+    td=max(tau_f); 
     
-    if true % used for debug only 
-        figure; plot(freqs,tau_f); grid on;
+    if false % used for debug only
+        figure; plot(freqs,tau_f,'b',freqs,ones(size(freqs))*td,'r','linewidth',2); grid on;
         title('delay as a function of frequency'); xlabel('frequency (Hz)'); ylabel('delay (s)');
     end
     
@@ -42,23 +46,23 @@ function Smod=tdSpars(freqs,Spars,pulsepar,varargin)
     tini_w=0;
 	tfin_w=(N-1)/(max(freqs)-min(freqs));     % time span (non periodic representable time)
     if length(varargin)>=1
-        win=varargin{1}(1)
-        tini_w=varargin{1}{2}(1)+td
-        tfin_w=varargin{1}{2}(2)+td
+        win=varargin{1}(1);
+        tini_w=varargin{1}{2}(1)+td;
+        tfin_w=varargin{1}{2}(2)+td;
     end
     % multiplier to get a new number of samples 
     Nper=1;                                 
 	if length(varargin)>=2
-        Nper=varargin{2}(1)
+        Nper=varargin{2}(1);
 	end
-    % variables used only for plotting: final time and estimated time of arrival for the firt reflection/transmission
+    % variables used only for plotting: final time and estimated time of arrival for the first reflection/transmission
 	if length(varargin)>=3
-        tmax=varargin{3}(1)
-        t_est=varargin{3}(2)
+        tmax=varargin{3}(1);
+        t_est=varargin{3}(2);
 	end    
 	showpuls=false;
     if length(varargin)>=4
-        showpuls=varargin{3}
+        showpuls=varargin{4};
     end   
    
     %% extraction of signal parameters
@@ -73,13 +77,13 @@ function Smod=tdSpars(freqs,Spars,pulsepar,varargin)
     %% create pulse
     x=gaussPulse((t-td),fc,bw,Nfft,pulse);	% pulse is delayed, time vector contains Nper times the original number of samples 
     f=linspace(-Nper*fs/2,Nper*fs/2,Ns);
-    if false %showpuls
-        figure,                             % pulse is plotted centered at t=0, delay used is the minimum negative value in the time axis
-        subplot(2,1,1);plot(t-td,x.time); grid on; title('time domain pulse'); xlabel('time (s)'); ylabel('amplitude');     
-        subplot(2,1,2);plot(f,10*log10(abs(fftshift(x.freq)))); grid on; title('frequency domain pulse'); xlabel('frequency (Hz)'); ylabel('magnitude (dB)');
+    if showpuls
+        figure,
+        subplot(2,1,1);plot(t,x.time,'linewidth',2); grid on; title('time domain pulse'); xlabel('time (s)'); ylabel('amplitude');     
+        subplot(2,1,2);plot(f,10*log10(abs(fftshift(x.freq))),'linewidth',2); grid on; title('frequency domain pulse'); xlabel('frequency (Hz)'); ylabel('magnitude (dB)');
     end
 
-    %% pulse response for reflection and transmission
+    %% pulse response for current S parameter (reflection/transmission)
 	y=pulseRespfromSpar(Nz,Spars,Nzp,x);
     normalizer=pulseRespfromSpar(Nz,ones(N,1),Nzp,x);
    
@@ -93,24 +97,26 @@ function Smod=tdSpars(freqs,Spars,pulsepar,varargin)
 	Smod=Smod(Nz+1:N+Nz);           % recover S parameters selecting the correct N samples           
     hn=normalizer.*w;
     Snormij=fft(hn,Ns)./x.freq;
-%            Smod(cont1,cont2,:)=Smodij(Nz+1:N+Nz)./Snormij(Nz+1:N+Nz);      % recover S parameters selecting the correct N samples     
+%            Smod(cont1,cont2,:)=Smodij(Nz+1:N+Nz)./Snormij(Nz+1:N+Nz); % recover S parameters selecting the correct N samples (should be optional)
 	
     %% Time domain plotting 
-    tplot=t(t<tmax)-td;
-    figure; subplot(2,1,1);
-    plot(tplot,w(t<tmax),'g','linewidth',2); hold on;
-    plot(tplot,real(y(t<tmax)),'linewidth',2); 
-    legstr={'window','measured'}; 
-    if exist('t_est','var')
-        hold on; plot([t_est t_est],[min(real(y)) max(real(y))],'r','linewidth',2); 
-        legstr={'window','measured','estimated'};
-    end
-	grid on; legend(legstr); 
-    title('time domain pulse response'); xlabel('time (s)'); ylabel('amplitude');
+	if showpuls
+        tplot=t(t<tmax);%-td;
+        figure; subplot(2,1,1);
+        plot(tplot,max(real(y))*w(t<tmax),'g','linewidth',2); hold on;
+        plot(tplot,real(y(t<tmax)),'linewidth',2); 
+        legstr={'(scl) window','measured'}; 
+        if exist('t_est','var')
+            hold on; plot([t_est+td t_est+td],[min(real(y)) max(real(y))],'r','linewidth',2); 
+            legstr={'(scl) window','measured','estimated'};
+        end
+        grid on; legend(legstr); 
+        title('time domain pulse response'); xlabel('time (s)'); ylabel('amplitude');
 
-    subplot(2,1,2); 
-    plot(tplot,real(hw(t<tmax)),'linewidth',2); grid on;
-	title('time domain gated pulse response'); xlabel('time (s)'); ylabel('amplitude');
+        subplot(2,1,2); 
+        plot(tplot,real(hw(t<tmax)),'linewidth',2); grid on;
+        title('time domain gated pulse response'); xlabel('time (s)'); ylabel('amplitude');
+	end
 end
 
 function w=retrieveWin(Ns,ind_win,win)
@@ -135,7 +141,7 @@ function w=retrieveWin(Ns,ind_win,win)
         w(ind_win)=wkb;
     elseif strcmp(win,'rectwin')
         w(ind_win)=rectwin(Nwin);
-    end
+	end
 end
 
 function y = pulseRespfromSpar(Nz,Spar,Nzp,x)

@@ -1,9 +1,9 @@
 %% Example: time gating routines 
+% The S parameters belong to the CST simulation of an uncoupled microstrip line consisting of three segments of different widths and lengths, 
+% first and third segments of 3cm and Z_0=50\Omega, second segment of 4cm and Z_0=100\Omega (see "unCoupled_uStrip.cst" simulation file for further details).
 clc,clear,close all,
 
 %% Physical parameters 
-% The S parameters belong to the CST simulation of an uncoupled microstrip line consisting of three segments of different widths and lengths, 
-% first segment of 3cm and Z_0=50\Omega, second segment of 4cm and Z_0=100\Omega (see simulation file for further details).
 c=3e8;                                              % speed of light
 d1=41.5e-3;                                         % distance to first obstacle (from port plane)
 d=123e-3;                                           % distance to second port (from port 1 to port 2 reference planes)
@@ -27,7 +27,7 @@ twin=[tini_wrf,tfin_wrf;tini_wtr,tfin_wtr;tini_wtr,tfin_wtr;tini_wrf,tfin_wrf];
 win='rectwin';                                 % truncation window name (supported: 'blackman', 'hamming','blackmanharris','kaiserbessel','rectwin')...
 
 %% Data loading
-curdir='C:\Users\usuario\Documents\MATLAB\Thesis\Calibraciones\';
+curdir='C:\Users\usuario\Documents\MATLAB\Thesis\Measurements\';
 [Spars,freqs,R]=readSpars([curdir 'unCopled_uStrip_FD.s2p']);         
 plotSpars(freqs,Spars,'fase','','','linea desacoplada','CST Simulation');
 % Spars_f=cleanSpars(Spars, freqs, 'RationalS', 'canonical', 11);                                   % fitting is not really benefical in this case
@@ -72,10 +72,9 @@ cont=0;
 for cont1=1:2
     for cont2=1:2
         cont=cont+1;
-        newS(cont1,cont2,:)=tdSpars(freqs,squeeze(Spars(cont1,cont2,:)),{pulsekind,fre},{win,twin(cont,:)},Nper,tp_est(cont,:),true);
+        newS(cont1,cont2,:)=tdSpars(freqs,squeeze(Spars(cont1,cont2,:)),{pulsekind,fre},{win,twin(cont,:)},Nper,tp_est(cont,:),false);
     end
 end
-% newS=timeGating(tdS,tini,tfin,win);                                           % Not sure if using one or two steps for this
 plotSpars(linspace(min(freqs),max(freqs),size(newS,3)),newS, 'fase');           % plot corrected S parameters
 
 Spars_fit=cleanSpars(newS, freqs, 'RationalS', 'canonical', 11);
@@ -83,10 +82,10 @@ idealSpars=ones(2,2,nfreqs);
 idealSpars(1,1,:)=1/3*idealSpars(1,1,:); idealSpars(2,1,:)=(1-1/9)*idealSpars(2,1,:); % Squared due to the two impedance transitions 
 idealSpars(1,2,:)=(1-1/9)*idealSpars(1,2,:); idealSpars(2,2,:)=1/3*idealSpars(2,2,:);
 
-% plotSpars(freqs, {Spars,X,newS,Spars_fit,idealSpars},'fase','cmp','','linea desacoplada',{'Original','Naive','Timegated','Fitting','Ideal'}); 
+%plotSpars(freqs, {Spars,X,newS,Spars_fit,idealSpars},'fase','cmp','','linea desacoplada',{'Original','Naive','Timegated','Fitting','Ideal'}); 
 % 
-% plotSpars(freqs, {Spars,newS},'fase','cmp','','linea desacoplada',{'Original','Timegated'}); 
-% plotSpars(freqs, {newS,idealSpars},'fase','cmp','','linea desacoplada',{'Timegated','Ideal'}); 
-% plotSpars(freqs, {newS,Spars_fit},'fase','cmp','','linea desacoplada',{'Timegated','Fitting'}); 
-% plotSpars(freqs, {X,idealSpars},'fase','cmp','','linea desacoplada',{'Naive','Ideal'}); 
-% plotSpars(freqs, {X,newS},'fase','cmp','','linea desacoplada',{'Naive','Timegated'}); 
+plotSpars(freqs, {Spars,newS},'fase','cmp','','linea desacoplada',{'Original','Timegated'}); 
+plotSpars(freqs, {newS,idealSpars},'fase','cmp','','linea desacoplada',{'Timegated','Ideal'}); 
+plotSpars(freqs, {newS,Spars_fit},'fase','cmp','','linea desacoplada',{'Timegated','Fitting'}); 
+plotSpars(freqs, {X,idealSpars},'fase','cmp','','linea desacoplada',{'Naive','Ideal'}); 
+plotSpars(freqs, {X,newS},'fase','cmp','','linea desacoplada',{'Naive','Timegated'}); 
