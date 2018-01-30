@@ -4,7 +4,8 @@
 % Inputs:
 %	- freqs = array containing frequency sweep    
 %	- Spars = S parameters matrix or list of matrices (each with dimensions Nports x Nports x Nfreqs)
-%	- varargin options = {fase, cmp, parkind, {names list}} 
+%	- varargin options = {linear, fase, cmp, parkind, {names list}} 
+%       - linear: string flag indicating if the magnitude plot is in linear or logarithmic scale
 %     	- fase: string flag to specify if the phase must be plotted or not, fase='fase'=true, fase=otherwise=false
 %       - cmp: string flag to indicate a comparison of S matrices (if enabled, a list of S matrices must be passed) 
 %       - parkind: string to select and label one S parameter even for the compared plots e.g: 'S_{11}', 'S_{21}' 
@@ -20,12 +21,16 @@ function plotSpars(freqs, Spars, varargin)
 nVarargs = length(varargin); 
 NumMats = 1;
 cmp = [];
+type = 'dB';%[];
 fase = [];
 parkind='S_{11}';
 name=[];
 namelist = [];
 [m,n,r] = size(Spars); 
 Nfreqs=length(freqs);
+
+% vars={'cmp','type','fase','parkind','name','namelist'};
+% vars(ismember(vars,varargin));
 
 % logic order for variables' priority: fase->name->parkind
 % something more elaborated as a logical vector can be done to determine if any optional variable is passed, independently of the others
@@ -64,15 +69,19 @@ legendstr = cell(NumMats*(m*n),1); % Cell array for the legends in plots
     %% S matrix correspond to just one S parameter
     if m == 1
         if ~strcmp(cmp,'cmp') % only one device
-            garPlot(freqs,squeeze(20*log10(abs(Spars(1,1,:)))),2,['Magnitude ' name],'Frecuency (Hz)',['Magnitude ' parkind ' (dB)'],'');
-            if strcmp(fase,'fase') % Phase plots are enabled
-                garPlot(freqs,squeeze(180/pi*(unwrap(angle(Spars(1,1,:))))),2,['Phase ', name],'Frecuency (Hz)',['Phase ' parkind ' (degrees)'],'');
+            if strcmp(type,'dB') 
+                garPlot(freqs,squeeze(20*log10(abs(Spars(1,1,:)))),2,['Magnitude ' name],'Frecuency (Hz)',['Magnitude ' parkind ' (dB)'],'');
+            elseif strcmp(type,'linear')
+                garPlot(freqs,squeeze(abs(Spars(1,1,:))),2,['Magnitude ' name],'Frecuency (Hz)',['Magnitude ' parkind ' (linear)'],'');
+            end
+            if strcmp(fase,'fase') % Phase plots are enabled (unwrap y/n?)
+                garPlot(freqs,squeeze(180/pi*( (angle(Spars(1,1,:))))),2,['Phase ', name],'Frecuency (Hz)',['Phase ' parkind ' (degrees)'],'');
             end
         elseif strcmp(cmp,'cmp') % more than one device
             matindex = 1;
             mags=zeros(NumMats,Nfreqs);
             for cont = 1:NumMats
-                mags(matindex,:) = squeeze(20*log10(abs(Spars{cont}(1,1,:))));
+                mags(matindex,:) = squeeze(abs(Spars{cont}(1,1,:)));%squeeze(20*log10(abs(Spars{cont}(1,1,:))));
                 if ~isempty(namelist)
                     legendstr{matindex} = [parkind ' ' namelist{cont}];
             else
@@ -80,12 +89,16 @@ legendstr = cell(NumMats*(m*n),1); % Cell array for the legends in plots
                 end
                 matindex = matindex + 1;
             end
-            garPlot(freqs,mags,2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (dB)',legendstr);
+            if strcmp(type,'dB') 
+                garPlot(freqs,20*log10(mags),2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (dB)',legendstr);
+            elseif strcmp(type,'linear') 
+                garPlot(freqs,mags,2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (linear)',legendstr);
+            end
             if strcmp(fase,'fase') 
                 matindex = 1;
                 phases=zeros(NumMats,Nfreqs);
-                for cont = 1:NumMats
-                    phases(matindex,:) = squeeze(180/pi*(unwrap(angle(Spars{cont}(1,1,:))))); 
+                for cont = 1:NumMats                    %unwrap
+                    phases(matindex,:) = squeeze(180/pi*((angle(Spars{cont}(1,1,:))))); 
                     if ~isempty(namelist)
                         legendstr{matindex} = [parkind ' ' namelist{cont}];
                     else
@@ -102,18 +115,23 @@ legendstr = cell(NumMats*(m*n),1); % Cell array for the legends in plots
         mags=zeros(m*n,Nfreqs);
         for cont1 = 1:m
             for cont2 = 1:n
-                mags(matindex,:)= squeeze(20*log10(abs(Spars(cont1,cont2,:))));
+                mags(matindex,:)= squeeze(abs(Spars(cont1,cont2,:)));%squeeze(20*log10(abs(Spars(cont1,cont2,:))));
                 legendstr{matindex} = ['S_{' num2str(cont1) num2str(cont2) '} '];
                 matindex = matindex + 1;
             end
         end
-        garPlot(freqs,mags,2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (dB)',legendstr);
+        if strcmp(type,'dB') 
+            garPlot(freqs,20*log10(mags),2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (dB)',legendstr);
+        elseif strcmp(type,'linear') 
+            garPlot(freqs,mags,2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (dB)',legendstr);
+        end
+
         if strcmp(fase,'fase') 	% Phase plots are enabled
             phases=zeros(m*n,Nfreqs);
             matindex = 1;
             for cont1 = 1:m
-                for cont2 = 1:n
-                    phases(matindex,:)= squeeze(180/pi*(unwrap(angle(Spars(cont1,cont2,:)))));
+                for cont2 = 1:n                         %unwrap
+                    phases(matindex,:)= squeeze(180/pi*((angle(Spars(cont1,cont2,:)))));
                     legendstr{matindex} = ['S_{' num2str(cont1) num2str(cont2) '} '];
                     matindex = matindex + 1;
                 end
@@ -127,7 +145,7 @@ legendstr = cell(NumMats*(m*n),1); % Cell array for the legends in plots
         for cont = 1:NumMats
             for cont1 = 1:m
                 for cont2 = 1:n
-                    mags(matindex,:)=squeeze(20*log10(abs(Spars{cont}(cont1,cont2,:))));
+                    mags(matindex,:)=squeeze(abs(Spars{cont}(cont1,cont2,:)));%squeeze(20*log10(abs(Spars{cont}(cont1,cont2,:))));
                     if ~isempty(namelist)
                         legendstr{matindex} = ['S_{' num2str(cont1) num2str(cont2) '} ' namelist{cont}];
                     else
@@ -137,15 +155,18 @@ legendstr = cell(NumMats*(m*n),1); % Cell array for the legends in plots
                 end
             end
         end
-        garPlot(freqs,mags,2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (dB)',legendstr);
+        if strcmp(type,'dB') 
+            garPlot(freqs,20*log10(mags),2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (dB)',legendstr);
+        elseif strcmp(type,'linear') 
+            garPlot(freqs,mags,2,['Magnitude ' name],'Frecuency (Hz)','Magnitude (dB)',legendstr);
+        end
         if strcmp(fase,'fase') 
             matindex = 1;
-%            I'm not sure on which alternative has better performance 
 %            phases = zeros(NumMats,length(freqs));
             for cont = 1:NumMats
                 for cont1 = 1:m
-                    for cont2 = 1:n
-                        phases(matindex,:) = squeeze(180/pi*(unwrap(angle(Spars{cont}(cont1,cont2,:))))); 
+                    for cont2 = 1:n                         % unwrap
+                        phases(matindex,:) = squeeze(180/pi*((angle(Spars{cont}(cont1,cont2,:))))); 
                         if ~isempty(namelist)
                             legendstr{matindex} = ['S_{' num2str(cont1) num2str(cont2) '} ' namelist{cont}];
                         else
