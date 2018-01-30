@@ -5,6 +5,9 @@
 %   - w: width of the line
 %   - eps_r: relative permittivity of the microstrip substrate
 %   - eps_rc: relative permittivity of the cover substrate
+%
+% Germán Augusto Ramírez Arroyave
+% CMUN 2017
 
 function epsr_eff=uStripOverlayModel(hc,h,w,eps_r,eps_rc)
     % regression coefficients provided
