@@ -30,15 +30,14 @@ function Smod=tdSpars(freqs,Spars,pulsepar,varargin)
     bw=pulsepar{2}(1);
     fc=pulsepar{2}(2);
    
-    % time delay from S pars, used as delay time for the pulse (\tau_d(f))
-    tau_f=-unwrap(angle(Spars))./(2*pi*freqs);
-    %td=mean(tau_f(~isnan(tau_f)));%
-    td=max(tau_f); 
-    
-    if false % used for debug only
-        figure; plot(freqs,tau_f,'b',freqs,ones(size(freqs))*td,'r','linewidth',2); grid on;
-        title('delay as a function of frequency'); xlabel('frequency (Hz)'); ylabel('delay (s)');
-    end
+    % time delay from S pars, could be used as delay time for the pulse (\tau_d(f))
+%	tau_f=-unwrap(angle(Spars))./(2*pi*freqs);
+%   td=5*abs(mean(tau_f(~isnan(tau_f))));
+%   td=abs(max(tau_f));     
+%     if false % used for debug only
+%         figure; plot(freqs,tau_f,'b',freqs,ones(size(freqs))*td,'r','linewidth',2); grid on;
+%         title('delay as a function of frequency'); xlabel('frequency (Hz)'); ylabel('delay (s)');
+%     end
     
     %% optional arguments
     % truncation window
@@ -47,8 +46,8 @@ function Smod=tdSpars(freqs,Spars,pulsepar,varargin)
 	tfin_w=(N-1)/(max(freqs)-min(freqs));     % time span (non periodic representable time)
     if length(varargin)>=1
         win=varargin{1}(1);
-        tini_w=varargin{1}{2}(1)+td;
-        tfin_w=varargin{1}{2}(2)+td;
+        tini_w=varargin{1}{2}(1);
+        tfin_w=varargin{1}{2}(2);
     end
     % multiplier to get a new number of samples 
     Nper=1;                                 
@@ -71,21 +70,20 @@ function Smod=tdSpars(freqs,Spars,pulsepar,varargin)
     Nz=round(min(freqs)/deltaF);            % number of zeros for padding the initial part of the spectrum
     Nzp=(Nper-1)*(N+Nz);                    % number of zeros for padding at the end (to increase time resolution)
 	Ns=2*(N+Nz+Nzp);                        % number of samples for the extended signal in frequency and interpolated time domain
-    t=0:1/(Nper*fs):(Ns-1)/(Nper*fs);       % time range is related to span as: (N-1)/span = 1/deltaF
+    t=-(Ns-1)/(2*Nper*fs):1/(Nper*fs):(Ns-1)/(2*Nper*fs);       % time range is related to span as: (N-1)/span = 1/deltaF
     Nfft=Ns;%2^nextpow2(Ns);                 
     
     %% create pulse
-    x=gaussPulse((t-td),fc,bw,Nfft,pulse);	% pulse is delayed, time vector contains Nper times the original number of samples 
+    x=gaussPulse(t,fc,bw,Nfft,pulse);	% pulse time vector contains Nper times the original number of samples 
     f=linspace(-Nper*fs/2,Nper*fs/2,Ns);
     if showpuls
-        figure,
-        subplot(2,1,1);plot(t,x.time,'linewidth',2); grid on; title('time domain pulse'); xlabel('time (s)'); ylabel('amplitude');     
+        figure, indplot=abs(t)<tmax;
+        subplot(2,1,1);plot(t(indplot),x.time(indplot),'linewidth',2); grid on; title('time domain pulse'); xlabel('time (s)'); ylabel('amplitude');     
         subplot(2,1,2);plot(f,10*log10(abs(fftshift(x.freq))),'linewidth',2); grid on; title('frequency domain pulse'); xlabel('frequency (Hz)'); ylabel('magnitude (dB)');
     end
 
     %% pulse response for current S parameter (reflection/transmission)
 	y=pulseRespfromSpar(Nz,Spars,Nzp,x);
-    normalizer=pulseRespfromSpar(Nz,ones(N,1),Nzp,x);
    
     %% window    
     ind_w=find(t>tini_w & t<tfin_w);
@@ -94,28 +92,34 @@ function Smod=tdSpars(freqs,Spars,pulsepar,varargin)
     %% Time gated S parameters in the specified window
 	hw=y.*w;
 	Smod=fft(hw,Ns)./x.freq;        % get back S parameters removing the pulse effect              
-	Smod=Smod(Nz+1:N+Nz);           % recover S parameters selecting the correct N samples           
-    hn=normalizer.*w;
-    Snormij=fft(hn,Ns)./x.freq;
-%            Smod(cont1,cont2,:)=Smodij(Nz+1:N+Nz)./Snormij(Nz+1:N+Nz); % recover S parameters selecting the correct N samples (should be optional)
-	
+	Smod=Smod(Nz+1:N+Nz);           % recover S parameters selecting the correct N samples              
+
+    %% Efficient implementation completely in the frequency domain (not tested yet)
+%     Smod_f = freqDomTimeGating(Nz,Spars,Nzp,x,w);
+%     idx=fix(length(Smod)/2+1) : fix(length(Smod)/2)+N;
+%     figure, plot(freqs,20*log10(abs(Spars)), freqs,20*log10(abs(Smod_f(idx)))); % ill behaved... 
+%     Smod_f = Smod_f(Nz+1:N+Nz);
+
     %% Time domain plotting 
 	if showpuls
-        tplot=t(t<tmax);%-td;
+        indplot=(abs(t)<tmax);%-td;
+        tplot=t(indplot);
+
         figure; subplot(2,1,1);
-        plot(tplot,max(real(y))*w(t<tmax),'g','linewidth',2); hold on;
-        plot(tplot,real(y(t<tmax)),'linewidth',2); 
+        plot(tplot,real(y(indplot)),'linewidth',2); hold on;
+        
+        plot(tplot,max(real(y))*w(indplot),'g','linewidth',2); 
         legstr={'(scl) window','measured'}; 
         if exist('t_est','var')
-            hold on; plot([t_est+td t_est+td],[min(real(y)) max(real(y))],'r','linewidth',2); 
+            hold on; plot([t_est t_est],[min(real(y)) max(real(y))],'r','linewidth',2); 
             legstr={'(scl) window','measured','estimated'};
         end
         grid on; legend(legstr); 
-        title('time domain pulse response'); xlabel('time (s)'); ylabel('amplitude');
+        title('time domain pulse response (real part)'); xlabel('time (s)'); ylabel('amplitude');
 
         subplot(2,1,2); 
-        plot(tplot,real(hw(t<tmax)),'linewidth',2); grid on;
-        title('time domain gated pulse response'); xlabel('time (s)'); ylabel('amplitude');
+        plot(tplot,real(hw(indplot)),'linewidth',2); grid on;
+        title('time domain gated pulse response (real part)'); xlabel('time (s)'); ylabel('amplitude');
 	end
 end
 
@@ -151,4 +155,13 @@ function y = pulseRespfromSpar(Nz,Spar,Nzp,x)
     Yij=Hij.*x.freq;                            % calculate output with a known analysis pulse input
     y=ifft(Yij);                                % fast convolution to calculate the time domain pulse response
     %[hij(Ns/2+1:end); hij(1:Ns/2)];            % negative time should be considered properly and causality ensured after delay correction      
+end
+
+function H = freqDomTimeGating(Nz,Spar,Nzp,x,w) 
+	posSij=[zeros(Nz,1); Spar; zeros(Nzp,1)];	
+    negSij=conj(posSij(end:-1:1));              
+    Hij=[posSij; negSij];
+    Yij=Hij.*x.freq;     
+    W=fft(w);
+    H=conv(Yij,W)./conv(x.freq,W);              % direct implementation of normalized time gating in the frequency domain
 end
