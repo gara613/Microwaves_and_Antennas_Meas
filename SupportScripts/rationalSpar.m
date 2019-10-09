@@ -5,16 +5,21 @@
 %   - yhat   = estimated vector, 
 %   - ord    = order of numerator (order of denominator=m-1), 
 %   - rmse
+%   - interpolated function if requested (only for canonical representation)
+%
 % inputs: 
 %   - x      = values of the independent variable
 %   - y      = values of the dependent variable (dataset)
-%   - option = {'barycentric', 'canonical'} representation of the rational function
+%   - varargin structure with fields
+%       * option = {'barycentric', 'canonical'} representation of the rational function
+%       * maxOrd 
+%       * interpFact
 % 
 % Germán Augusto Ramírez Arroyave
 % Universidad Nacional de Colombia
 % CMUN 2014
 
-function [yhat, orNum, rmse] = rationalSpar(x, y, varargin)
+function [yhat, orNum, rmse, varargout] = rationalSpar(x, y, varargin)
     %% Default values and initialization of parameters
     option = 'canonical';
     maxOrd = 1;
@@ -24,15 +29,24 @@ function [yhat, orNum, rmse] = rationalSpar(x, y, varargin)
     xnorm = x./10^(magOrderX);          % Removes the exponent
     yhat = zeros(size(y));
 
-	tol = 1e-2;             % Maximum approximation error (high to avoid overfitting)
+	tol = 1e-3;             % Maximum approximation error (high to avoid overfitting)
     xtam = length(x);
     delta = 10*eps; 
     num = zeros(xtam,1);
     den = zeros(xtam,1);
     orNum = 1; orDen = 0;   % Assume orNum = orDen+1, increase sequentially in steps of one
     if ~isempty(varargin)
-        option = varargin{1}; 
-        maxOrd = varargin{2};
+        switch length(varargin)
+            case 1
+                option = varargin{1}; 
+            case 2
+                option = varargin{1}; 
+                maxOrd = varargin{2};
+            case 3
+                option = varargin{1}; 
+                maxOrd = varargin{2};
+                interpFact = varargin{3};
+        end
     end
     %% Berrut & Mittelmann. "Matrices for the direct determination of the barycentric weights of rational interpolation" 
     % Journal of Computational and Applied Mathematics, 78 355-370, 1997.
@@ -88,6 +102,12 @@ function [yhat, orNum, rmse] = rationalSpar(x, y, varargin)
         	yhat = num./den;
             orNum = orNum+1;
             orDen = orDen+1;
+        end
+        if exist('interpFact','var')
+            xnorm = linspace(min(xnorm),max(xnorm),interpFact);
+            num = polyval(coefs(orNum:-1:1),xnorm);
+        	den = polyval([coefs(end:-1:orNum+1); 1],xnorm);
+        	varargout{1} = num./den;            
         end
     end
     rmse = sqrt(1/xtam*norm(y-yhat));

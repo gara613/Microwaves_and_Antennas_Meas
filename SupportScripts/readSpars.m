@@ -4,9 +4,8 @@
 % (The latter must be a *.txt file from the data copied using the software FHSview)
 %
 % Notes:    - Lacks an extension to read noise parameters in the *.snp files 
-%           - Lacks validaion of inline comments (after the #freq.) in the *.snp files
 %
-% Format *.snp, please refer to the specification: Touchstone® File Format Specification    
+% Format *.snp, please refer to the specification: Touchstone® File Format V1.0 Specification    
 % Header line: # <frequency unit> <parameter> <format> R <n>
 % Frequency unit (G=GHz,M=MHz,etc), kind of parameters in file (S,Z,Y,etc), format (MA=Magnitud y Ángulo,RI=Real e Imaginario, DB=MA, etc), reference port impedance
 % Comment lines begin with: '!'
@@ -20,7 +19,7 @@
 %   - path to the file to be read 
 %   - option = 's11' (literal string), only in the case of requiring the read a *.set file containing only the S11 parameter
 % Outputs: [S, freq, Rcar]
-%   - S parameters matrix (nports x nports x nfreqs), even for one port networs (1x1xnfreqs) 
+%   - S parameters matrix (nports x nports x nfreqs), even for one port networs the format is (1x1xnfreqs) 
 %   - frequency vector (nfreqs x 1) 
 %   - reference impedance in the measurements
 %
@@ -29,7 +28,6 @@
 % Grupo de Investigación en Telecomunicaciones - CMUN (2014)
 
 function [Spars, freqs, R_car] = readSpars(varargin)
-
     narginchk(1,2);
     filename = char(varargin{1});
     if nargin == 2 % Option is currently used only to indicate that the *.set file to read contains an S11 measurement
@@ -49,25 +47,28 @@ function [Spars, freqs, R_car] = readSpars(varargin)
     if strcmp(parsedname(end),'s1p')
         [unidadesfreq, formato, R_car] = headerSnp(fileId);
 
-        datos = textscan(fileId, '%f %f %f');
+        datos = cell2mat(textscan(fileId,'%f %f %f','CollectOutput',1,'TreatAsEmpty',{'\t'},'EmptyValue',-Inf,'CommentStyle','!'));
 
         % Frequency vector (other units are not very interesting and are omitted)
         if unidadesfreq == 'T'
-            freqs = datos{:,1}*1e12;
+            freqs = datos(:,1)*1e12;
         elseif unidadesfreq == 'G'
-            freqs = datos{:,1}*1e9;
+            freqs = datos(:,1)*1e9;
         elseif unidadesfreq == 'M'
-            freqs = datos{:,1}*1e6;
+            freqs = datos(:,1)*1e6;
         elseif unidadesfreq == 'H'
-            freqs = datos{:,1};
+            freqs = datos(:,1);
         end
 
         % Format Magnitude and Angle
         if strcmp(formato,'MA')
-            Spars(1,1,:) = datos{:,2}.*exp(1i*datos{:,3}*pi/180);
+            Spars(1,1,:) = datos(:,2).*exp(1i*datos(:,3)*pi/180);
+        % Format dB and Angle
+        elseif strcmp(formato,'DB')
+            Spars(1,1,:) = 10.^(datos(:,2)/10).*exp(1i*datos(:,3)*pi/180);
         % Format Real and Imaginary
         elseif strcmp(formato,'RI')
-            Spars(1,1,:) = complex(datos{:,2},datos{:,3});
+            Spars(1,1,:) = complex(datos(:,2),datos(:,3));
         else
             error('Error in readSpars: loading file *.s1p - format not known');
         end
@@ -75,42 +76,54 @@ function [Spars, freqs, R_car] = readSpars(varargin)
     %% Reads s2p files
     elseif strcmp(parsedname(end),'s2p')
         [unidadesfreq, formato, R_car] = headerSnp(fileId);
-
-        datos = textscan(fileId, '%f %f %f %f %f %f %f %f %f');
+        
+        datos = cell2mat(textscan(fileId,repmat('%f',[1 9]),'CollectOutput',1,'TreatAsEmpty',{'\t'},'EmptyValue',-Inf,'CommentStyle','!'));
 
         % Frequency vector 
         if unidadesfreq == 'T'
-            freqs = datos{:,1}*1e12;
+            freqs = datos(:,1)*1e12;
         elseif unidadesfreq == 'G'
-            freqs = datos{:,1}*1e9;
+            freqs = datos(:,1)*1e9;
         elseif unidadesfreq == 'M'
-            freqs = datos{:,1}*1e6;
+            freqs = datos(:,1)*1e6;
         elseif unidadesfreq == 'H'
-            freqs = datos{:,1};
+            freqs = datos(:,1);
         end
 
-        % Format Magnitude and Angle (DB as exported in the FHSview software)
-        if strcmp(formato,'MA') || strcmp(formato,'DB') 
-            Spars(1,1,:) = datos{:,2}.*exp(1i*datos{:,3}*pi/180);
-            Spars(2,1,:) = datos{:,4}.*exp(1i*datos{:,5}*pi/180);
-            Spars(1,2,:) = datos{:,6}.*exp(1i*datos{:,7}*pi/180);
-            Spars(2,2,:) = datos{:,8}.*exp(1i*datos{:,9}*pi/180);
+        % Format Magnitude and Angle 
+        if strcmp(formato,'MA')
+            Spars(1,1,:) = datos(:,2).*exp(1i*datos(:,3)*pi/180);
+            Spars(2,1,:) = datos(:,4).*exp(1i*datos(:,5)*pi/180);
+            Spars(1,2,:) = datos(:,6).*exp(1i*datos(:,7)*pi/180);
+            Spars(2,2,:) = datos(:,8).*exp(1i*datos(:,9)*pi/180);
+        % DB as exported in the FHSview software
+        elseif strcmp(formato,'DB') 
+            Spars(1,1,:) = 10.^(datos(:,2)/10).*exp(1i*datos(:,3)*pi/180);
+            Spars(2,1,:) = 10.^(datos(:,4)/10).*exp(1i*datos(:,5)*pi/180);
+            Spars(1,2,:) = 10.^(datos(:,6)/10).*exp(1i*datos(:,7)*pi/180);
+            Spars(2,2,:) = 10.^(datos(:,8)/10).*exp(1i*datos(:,9)*pi/180);            
         % Format Real and Imaginary
         elseif strcmp(formato,'RI')
-            Spars(1,1,:) = complex(datos{:,2},datos{:,3});
-            Spars(2,1,:) = complex(datos{:,4},datos{:,5});
-            Spars(1,2,:) = complex(datos{:,6},datos{:,7});
-            Spars(2,2,:) = complex(datos{:,8},datos{:,9});
+            Spars(1,1,:) = complex(datos(:,2),datos(:,3));
+            Spars(2,1,:) = complex(datos(:,4),datos(:,5));
+            Spars(1,2,:) = complex(datos(:,6),datos(:,7));
+            Spars(2,2,:) = complex(datos(:,8),datos(:,9));
         else 
             error('Error in readSpars: loading .s2p file - format not known');
         end
 
-    %% Reads s3p files (Not validated yet...)
+    %% Reads s3p files
     elseif strcmp(parsedname(end),'s3p')     
-        disp('Warning en readSpars: cargado de archivos *.s3p - no se ha validado aún');
+        disp('Warning in readSpars: loading *.s3p files - not fully validated yet');
         [unidadesfreq, formato, R_car] = headerSnp(fileId);
 
-        datos = textscan(fileId, '%f %f %f %f %f %f %f');
+        datos = cell2mat(textscan(fileId,repmat('%f',[1 7]),'CollectOutput',1,'TreatAsEmpty',{'\t'},'EmptyValue',-Inf,'CommentStyle','!'));
+        for cont=7:-1:2
+            datos(2:3:end,cont) = datos(2:3:end,cont-1);
+            datos(3:3:end,cont) = datos(3:3:end,cont-1);
+        end
+        datos(2:3:end,1) = -inf;
+        datos(3:3:end,1) = -inf;
         % 3-port network description
         % <frequency value> <N11> <N12> <N13>
         %                   <N21> <N22> <N23>
@@ -118,47 +131,57 @@ function [Spars, freqs, R_car] = readSpars(varargin)
 
         % Frequency vector
         if unidadesfreq == 'T'
-            freqs = datos{1:3:end,1}*1e12;
+            freqs = datos(1:3:end,1)*1e12;
         elseif unidadesfreq == 'G'
-            freqs = datos{1:3:end,1}*1e9;
+            freqs = datos(1:3:end,1)*1e9;
         elseif unidadesfreq == 'M'
-            freqs = datos{1:3:end,1}*1e6;
+            freqs = datos(1:3:end,1)*1e6;
         elseif unidadesfreq == 'H'
-            freqs = datos{:,1};
+            freqs = datos(1:3:end,1);
         end
 
         % Format Magnitude and Angle
         if strcmp(formato,'MA')
-            Spars(1,1,:) = datos{1:3:end,2}.*exp(1i*datos{1:3:end,3}*pi/180);
-            Spars(1,2,:) = datos{1:3:end,4}.*exp(1i*datos{1:3:end,5}*pi/180);
-            Spars(1,3,:) = datos{1:3:end,6}.*exp(1i*datos{1:3:end,7}*pi/180);
-            Spars(2,1,:) = datos{2:3:end,2}.*exp(1i*datos{2:3:end,3}*pi/180);
-            Spars(2,2,:) = datos{2:3:end,4}.*exp(1i*datos{2:3:end,5}*pi/180);
-            Spars(2,3,:) = datos{2:3:end,6}.*exp(1i*datos{2:3:end,7}*pi/180);
-            Spars(3,1,:) = datos{3:3:end,2}.*exp(1i*datos{3:3:end,3}*pi/180);
-            Spars(3,2,:) = datos{3:3:end,4}.*exp(1i*datos{3:3:end,5}*pi/180);
-            Spars(3,3,:) = datos{3:3:end,6}.*exp(1i*datos{3:3:end,7}*pi/180);
+            Spars(1,1,:) = datos(1:3:end,2).*exp(1i*datos(1:3:end,3)*pi/180);
+            Spars(1,2,:) = datos(1:3:end,4).*exp(1i*datos(1:3:end,5)*pi/180);
+            Spars(1,3,:) = datos(1:3:end,6).*exp(1i*datos(1:3:end,7)*pi/180);
+            Spars(2,1,:) = datos(2:3:end,2).*exp(1i*datos(2:3:end,3)*pi/180);
+            Spars(2,2,:) = datos(2:3:end,4).*exp(1i*datos(2:3:end,5)*pi/180);
+            Spars(2,3,:) = datos(2:3:end,6).*exp(1i*datos(2:3:end,7)*pi/180);
+            Spars(3,1,:) = datos(3:3:end,2).*exp(1i*datos(3:3:end,3)*pi/180);
+            Spars(3,2,:) = datos(3:3:end,4).*exp(1i*datos(3:3:end,5)*pi/180);
+            Spars(3,3,:) = datos(3:3:end,6).*exp(1i*datos(3:3:end,7)*pi/180);
+        elseif strcmp(formato,'DB') 
+            Spars(1,1,:) = 10.^(datos(1:3:end,2)/10).*exp(1i*datos(1:3:end,3)*pi/180);
+            Spars(1,2,:) = 10.^(datos(1:3:end,4)/10).*exp(1i*datos(1:3:end,5)*pi/180);
+            Spars(1,3,:) = 10.^(datos(1:3:end,6)/10).*exp(1i*datos(1:3:end,7)*pi/180);
+            Spars(2,1,:) = 10.^(datos(2:3:end,2)/10).*exp(1i*datos(2:3:end,3)*pi/180);
+            Spars(2,2,:) = 10.^(datos(2:3:end,4)/10).*exp(1i*datos(2:3:end,5)*pi/180);
+            Spars(2,3,:) = 10.^(datos(2:3:end,6)/10).*exp(1i*datos(2:3:end,7)*pi/180);
+            Spars(3,1,:) = 10.^(datos(3:3:end,2)/10).*exp(1i*datos(3:3:end,3)*pi/180);
+            Spars(3,2,:) = 10.^(datos(3:3:end,4)/10).*exp(1i*datos(3:3:end,5)*pi/180);
+            Spars(3,3,:) = 10.^(datos(3:3:end,6)/10).*exp(1i*datos(3:3:end,7)*pi/180);
         % Format Real and Imaginary
         elseif strcmp(formato,'RI')
-            Spars(1,1,:) = complex(datos{1:3:end,2},datos{1:3:end,3}); 
-            Spars(1,2,:) = complex(datos{1:3:end,4},datos{1:3:end,5});
-            Spars(1,3,:) = complex(datos{1:3:end,6},datos{1:3:end,7});
-            Spars(2,1,:) = complex(datos{2:3:end,2},datos{2:3:end,3});
-            Spars(2,2,:) = complex(datos{2:3:end,4},datos{2:3:end,5});
-            Spars(2,3,:) = complex(datos{2:3:end,6},datos{2:3:end,7});
-            Spars(3,1,:) = complex(datos{3:3:end,2},datos{3:3:end,3});
-            Spars(3,2,:) = complex(datos{3:3:end,4},datos{3:3:end,5});
-            Spars(3,3,:) = complex(datos{3:3:end,6},datos{3:3:end,7});
+            Spars(1,1,:) = complex(datos(1:3:end,2),datos(1:3:end,3)); 
+            Spars(1,2,:) = complex(datos(1:3:end,4),datos(1:3:end,5));
+            Spars(1,3,:) = complex(datos(1:3:end,6),datos(1:3:end,7));
+            Spars(2,1,:) = complex(datos(2:3:end,2),datos(2:3:end,3));
+            Spars(2,2,:) = complex(datos(2:3:end,4),datos(2:3:end,5));
+            Spars(2,3,:) = complex(datos(2:3:end,6),datos(2:3:end,7));
+            Spars(3,1,:) = complex(datos(3:3:end,2),datos(3:3:end,3));
+            Spars(3,2,:) = complex(datos(3:3:end,4),datos(3:3:end,5));
+            Spars(3,3,:) = complex(datos(3:3:end,6),datos(3:3:end,7));
         else 
             disp('Error in readSpars: loading .s3p file - format not known');
         end
 
-    %% Lee archivos s4p (Pendiente validacíón...)
+    %% Lee archivos s4p
     elseif strcmp(parsedname(end),'s4p')     
-        disp('Warning en readSpars: cargado de archivos *.s4p - no se ha validado aún');
+        disp('Warning in readSpars: loading *.s4p files - not fully validated yet');
         [unidadesfreq, formato, R_car] = headerSnp(fileId);
 
-        datos = textscan(fileId, '%f %f %f %f %f %f %f %f %f');
+        datos = cell2mat(textscan(fileId,repmat('%f',[1,9]),'CollectOutput',1,'TreatAsEmpty',{'\t'},'EmptyValue',-Inf,'CommentStyle','!')); 
         % 4-port network description
         % <frequency value> <N11> <N12> <N13> <N14>
         %                   <N21> <N22> <N23> <N24>
@@ -167,53 +190,143 @@ function [Spars, freqs, R_car] = readSpars(varargin)
 
         % Frequency vector
         if unidadesfreq == 'T'
-            freqs = datos{1:4:end,1}*1e12;
+            freqs = datos(1:4:end,1)*1e12;
         elseif unidadesfreq == 'G'
-            freqs = datos{1:4:end,1}*1e9;
+            freqs = datos(1:4:end,1)*1e9;
         elseif unidadesfreq == 'M'
-            freqs = datos{1:4:end,1}*1e6;
+            freqs = datos(1:4:end,1)*1e6;
         elseif unidadesfreq == 'H'
-            freqs = datos{:,1};
+            freqs = datos(1:4:end,1);
         end
 
         % Format Magnitude and Angle
         if strcmp(formato,'MA')
-            Spars(1,1,:) = datos{1:4:end,2}.*exp(1i*datos{1:4:end,3}*pi/180);
-            Spars(1,2,:) = datos{1:4:end,4}.*exp(1i*datos{1:4:end,5}*pi/180);
-            Spars(1,3,:) = datos{1:4:end,6}.*exp(1i*datos{1:4:end,7}*pi/180);
-            Spars(1,4,:) = datos{1:4:end,8}.*exp(1i*datos{1:4:end,9}*pi/180);
-            Spars(2,1,:) = datos{2:4:end,2}.*exp(1i*datos{2:4:end,3}*pi/180);
-            Spars(2,2,:) = datos{2:4:end,4}.*exp(1i*datos{2:4:end,5}*pi/180);
-            Spars(2,3,:) = datos{2:4:end,6}.*exp(1i*datos{2:4:end,7}*pi/180);
-            Spars(2,4,:) = datos{2:4:end,8}.*exp(1i*datos{2:4:end,9}*pi/180);
-            Spars(3,1,:) = datos{3:4:end,2}.*exp(1i*datos{3:4:end,3}*pi/180);
-            Spars(3,2,:) = datos{3:4:end,4}.*exp(1i*datos{3:4:end,5}*pi/180);
-            Spars(3,3,:) = datos{3:4:end,6}.*exp(1i*datos{3:4:end,7}*pi/180);
-            Spars(3,4,:) = datos{3:4:end,8}.*exp(1i*datos{3:4:end,9}*pi/180);
-            Spars(4,1,:) = datos{4:4:end,2}.*exp(1i*datos{4:4:end,3}*pi/180);
-            Spars(4,2,:) = datos{4:4:end,4}.*exp(1i*datos{4:4:end,5}*pi/180);
-            Spars(4,3,:) = datos{4:4:end,6}.*exp(1i*datos{4:4:end,7}*pi/180);
-            Spars(4,4,:) = datos{4:4:end,8}.*exp(1i*datos{4:4:end,9}*pi/180);
+            Spars(1,1,:) = datos(1:4:end,2).*exp(1i*datos(1:4:end,3)*pi/180);
+            Spars(1,2,:) = datos(1:4:end,4).*exp(1i*datos(1:4:end,5)*pi/180);
+            Spars(1,3,:) = datos(1:4:end,6).*exp(1i*datos(1:4:end,7)*pi/180);
+            Spars(1,4,:) = datos(1:4:end,8).*exp(1i*datos(1:4:end,9)*pi/180);
+            Spars(2,1,:) = datos(2:4:end,2).*exp(1i*datos(2:4:end,3)*pi/180);
+            Spars(2,2,:) = datos(2:4:end,4).*exp(1i*datos(2:4:end,5)*pi/180);
+            Spars(2,3,:) = datos(2:4:end,6).*exp(1i*datos(2:4:end,7)*pi/180);
+            Spars(2,4,:) = datos(2:4:end,8).*exp(1i*datos(2:4:end,9)*pi/180);
+            Spars(3,1,:) = datos(3:4:end,2).*exp(1i*datos(3:4:end,3)*pi/180);
+            Spars(3,2,:) = datos(3:4:end,4).*exp(1i*datos(3:4:end,5)*pi/180);
+            Spars(3,3,:) = datos(3:4:end,6).*exp(1i*datos(3:4:end,7)*pi/180);
+            Spars(3,4,:) = datos(3:4:end,8).*exp(1i*datos(3:4:end,9)*pi/180);
+            Spars(4,1,:) = datos(4:4:end,2).*exp(1i*datos(4:4:end,3)*pi/180);
+            Spars(4,2,:) = datos(4:4:end,4).*exp(1i*datos(4:4:end,5)*pi/180);
+            Spars(4,3,:) = datos(4:4:end,6).*exp(1i*datos(4:4:end,7)*pi/180);
+            Spars(4,4,:) = datos(4:4:end,8).*exp(1i*datos(4:4:end,9)*pi/180);
+        elseif strcmp(formato,'DB')
+            Spars(1,1,:) = 10.^(datos(1:4:end,2)/10).*exp(1i*datos(1:4:end,3)*pi/180);
+            Spars(1,2,:) = 10.^(datos(1:4:end,4)/10).*exp(1i*datos(1:4:end,5)*pi/180);
+            Spars(1,3,:) = 10.^(datos(1:4:end,6)/10).*exp(1i*datos(1:4:end,7)*pi/180);
+            Spars(1,4,:) = 10.^(datos(1:4:end,8)/10).*exp(1i*datos(1:4:end,9)*pi/180);
+            Spars(2,1,:) = 10.^(datos(2:4:end,2)/10).*exp(1i*datos(2:4:end,3)*pi/180);
+            Spars(2,2,:) = 10.^(datos(2:4:end,4)/10).*exp(1i*datos(2:4:end,5)*pi/180);
+            Spars(2,3,:) = 10.^(datos(2:4:end,6)/10).*exp(1i*datos(2:4:end,7)*pi/180);
+            Spars(2,4,:) = 10.^(datos(2:4:end,8)/10).*exp(1i*datos(2:4:end,9)*pi/180);
+            Spars(3,1,:) = 10.^(datos(3:4:end,2)/10).*exp(1i*datos(3:4:end,3)*pi/180);
+            Spars(3,2,:) = 10.^(datos(3:4:end,4)/10).*exp(1i*datos(3:4:end,5)*pi/180);
+            Spars(3,3,:) = 10.^(datos(3:4:end,6)/10).*exp(1i*datos(3:4:end,7)*pi/180);
+            Spars(3,4,:) = 10.^(datos(3:4:end,8)/10).*exp(1i*datos(3:4:end,9)*pi/180);
+            Spars(4,1,:) = 10.^(datos(4:4:end,2)/10).*exp(1i*datos(4:4:end,3)*pi/180);
+            Spars(4,2,:) = 10.^(datos(4:4:end,4)/10).*exp(1i*datos(4:4:end,5)*pi/180);
+            Spars(4,3,:) = 10.^(datos(4:4:end,6)/10).*exp(1i*datos(4:4:end,7)*pi/180);
+            Spars(4,4,:) = 10.^(datos(4:4:end,8)/10).*exp(1i*datos(4:4:end,9)*pi/180);                    
         % Format Real and Imaginary
         elseif strcmp(formato,'RI')
-            Spars(1,1,:) = complex(datos{1:4:end,2},datos{1:4:end,3});
-            Spars(1,2,:) = complex(datos{1:4:end,4},datos{1:4:end,5});
-            Spars(1,3,:) = complex(datos{1:4:end,6},datos{1:4:end,7});
-            Spars(1,4,:) = complex(datos{1:4:end,8},datos{1:4:end,9});
-            Spars(2,1,:) = complex(datos{2:4:end,2},datos{2:4:end,3});
-            Spars(2,2,:) = complex(datos{2:4:end,4},datos{2:4:end,5});
-            Spars(2,3,:) = complex(datos{2:4:end,6},datos{2:4:end,7});
-            Spars(2,4,:) = complex(datos{2:4:end,8},datos{2:4:end,9});
-            Spars(3,1,:) = complex(datos{3:4:end,2},datos{3:4:end,3});
-            Spars(3,2,:) = complex(datos{3:4:end,4},datos{3:4:end,5});
-            Spars(3,3,:) = complex(datos{3:4:end,6},datos{3:4:end,7});
-            Spars(3,4,:) = complex(datos{3:4:end,8},datos{3:4:end,9});
-            Spars(4,1,:) = complex(datos{4:4:end,2},datos{4:4:end,3});
-            Spars(4,2,:) = complex(datos{4:4:end,4},datos{4:4:end,5});
-            Spars(4,3,:) = complex(datos{4:4:end,6},datos{4:4:end,7});
-            Spars(4,4,:) = complex(datos{4:4:end,8},datos{4:4:end,9});
+            Spars(1,1,:) = complex(datos(1:4:end,2),datos(1:4:end,3));
+            Spars(1,2,:) = complex(datos(1:4:end,4),datos(1:4:end,5));
+            Spars(1,3,:) = complex(datos(1:4:end,6),datos(1:4:end,7));
+            Spars(1,4,:) = complex(datos(1:4:end,8),datos(1:4:end,9));
+            Spars(2,1,:) = complex(datos(2:4:end,2),datos(2:4:end,3));
+            Spars(2,2,:) = complex(datos(2:4:end,4),datos(2:4:end,5));
+            Spars(2,3,:) = complex(datos(2:4:end,6),datos(2:4:end,7));
+            Spars(2,4,:) = complex(datos(2:4:end,8),datos(2:4:end,9));
+            Spars(3,1,:) = complex(datos(3:4:end,2),datos(3:4:end,3));
+            Spars(3,2,:) = complex(datos(3:4:end,4),datos(3:4:end,5));
+            Spars(3,3,:) = complex(datos(3:4:end,6),datos(3:4:end,7));
+            Spars(3,4,:) = complex(datos(3:4:end,8),datos(3:4:end,9));
+            Spars(4,1,:) = complex(datos(4:4:end,2),datos(4:4:end,3));
+            Spars(4,2,:) = complex(datos(4:4:end,4),datos(4:4:end,5));
+            Spars(4,3,:) = complex(datos(4:4:end,6),datos(4:4:end,7));
+            Spars(4,4,:) = complex(datos(4:4:end,8),datos(4:4:end,9));
         else 
             disp('Error in readSpars: loading .s4p file - format not known');
+        end
+
+	%% Lee archivos sNp en general 
+    elseif ~strcmp(parsedname(end),'txt') & ~isempty(regexp(parsedname(end),'s+[5-9]+p'))
+%        N = regexp(parsedname(end), '[5-9]');    
+%        N = str2num(parsedname{end}(N{1}));
+        N = regexp(parsedname(end), '\d');
+        N = str2num(parsedname{end}(N{1}));
+
+        disp('Warning in readSpars: loading large *.sNp files - not fully validated yet'); % successfully tested for s7p files
+        [unidadesfreq, formato, R_car] = headerSnp(fileId);
+        datos = cell2mat(textscan(fileId,repmat('%f',[1,9]),'CollectOutput',1,'TreatAsEmpty',{'\t'},'EmptyValue',-Inf,'CommentStyle','!')); 
+        % N-port network description, each <Nxx> entry has two values depending on the format, there are actually 9 columns in the file
+        % <frequency value> <N11> <N12> <N13> <N14>
+        %                   <N15>     ...     <N18>
+        %                   <N19>...
+        %                   <N21> <N22> <N23> <N24>
+        %                   <N25>     ...     <N28>
+        %                   <N29>...
+        %                   <N31> <N32> <N33> <N34>
+        %                   <N35>     ...     <N38>
+        %                   <N39>...
+
+        % Frequency vector
+        K = fix((N-1)/4)+1;
+        if unidadesfreq == 'T'
+            freqs = datos(1:N*K:end,1)*1e12;
+        elseif unidadesfreq == 'G'
+            freqs = datos(1:N*K:end,1)*1e9;
+        elseif unidadesfreq == 'M'
+            freqs = datos(1:N*K:end,1)*1e6;
+        elseif unidadesfreq == 'H'
+            freqs = datos(1:N*K:end,1);
+        end
+        
+        Spars = zeros(N,N,length(freqs));
+        datos(1:N*K:end,1:end-1) = datos(1:N*K:end,2:end); % this is a memory waste but simplifies indexing, search for a way to improve this!
+
+        % Format Magnitude and Angle
+        if strcmp(formato,'MA')
+            for contfrq = 1:length(freqs)
+                for cont1 = 1:N
+                    for cont2 = 1:N
+                        indFil = (contfrq-1)*N*K + fix((cont2-1)/4) + K*(cont1-1) + 1;                                          
+                        indCol = 2*mod(cont2-1,4)+1;
+                        Spars(cont1,cont2,contfrq) = datos(indFil,indCol) .* exp(1i*datos(indFil,indCol+1)*pi/180);
+                    end
+                end
+            end
+        % Format dB mag and Angle
+        elseif strcmp(formato,'DB')
+            for contfrq = 1:length(freqs)
+                for cont1 = 1:N
+                    for cont2 = 1:N
+                        indFil = (contfrq-1)*N*K + fix((cont2-1)/4) + K*(cont1-1) + 1;                                          
+                        indCol = 2*mod(cont2-1,4)+1;
+                        Spars(cont1,cont2,contfrq) = 10.^(datos(indFil,indCol)/10) .* exp(1i*datos(indFil,indCol+1)*pi/180);
+                    end
+                end
+            end
+        % Format Real and Imaginary
+        elseif strcmp(formato,'RI')
+            for contfrq = 1:length(freqs)
+                for cont1 = 1:N
+                    for cont2 = 1:N
+                        indFil = (contfrq-1)*N*K + fix((cont2-1)/4) + K*(cont1-1) + 1;
+                        indCol = 2*mod(cont2-1,4)+1;
+                        Spars(cont1,cont2,contfrq) = complex( datos(indFil,indCol), datos(indFil,indCol+1) );
+                    end
+                end
+            end
+        else 
+            disp('Error in readSpars: loading .snp file - format not known');
         end
 
     %% Reads files in the R&S FSH8 VNA format (.txt file not .set )
@@ -224,7 +337,7 @@ function [Spars, freqs, R_car] = readSpars(varargin)
         fclose(fid);                    
         Data = strrep(Data, ',', '.'); % don't know why matlab doesn't allow to overwrite the entire file
         fid = fopen(filename, 'w');   
-        fprintf(fid, Data, '%c');
+        fprintf(fid, Data, '%c');      % should require permission to overwrite the entire file
         fclose(fid);
 
         while feof(fileId) == 0
@@ -239,27 +352,27 @@ function [Spars, freqs, R_car] = readSpars(varargin)
         % In case just S11 is of interest
         if strcmp(option,'s11')
             %extracts all the data from the 3 columns in trace 1... (columns 4, 5 y 6 are repeated information)
-            datos = textscan(fileId, '%f %f %f %f %f %f');
+            datos = cell2mat(textscan(fileId, '%f %f %f %f %f %f','CollectOutput',1));
             %frequency vector
-            freqs = datos{:,1};
+            freqs = datos(:,1);
             %S parameters in the case of only S11 
-            S11_mag_dB = datos{:,2};
-            S11_Fase = datos{:,3};
+            S11_mag_dB = datos(:,2);
+            S11_Fase = datos(:,3);
             Spars(1,1,:) = 10.^(S11_mag_dB/20).*exp(1i*S11_Fase*pi/180); % return linear values as is the case for Snp files
         else % S pars of two port networks
-            datos = textscan(fileId, '%f %f %f %f %f %f %f %f %f %f %f %f');
+            datos = cell2mat(textscan(fileId, repmat('%f', [1 12]'),'CollectOutput',1));
             %frequency vector
-            freqs = datos{:,1};
+            freqs = datos(:,1);
             %Each trace contains: frequency, magnitude and phase in three columns
             %According to the convention: Tr1 = S11, Tr2 = S22, Tr3 = S21, Tr4 = S12
-            S11_mag_dB = datos{:,2};
-            S11_Fase = datos{:,3};
-            S22_mag_dB = datos{:,5}; % Same frequency sampling is assumed for the 4 traces, hence columns 4,7,10 are omitted 
-            S22_Fase = datos{:,6};
-            S21_mag_dB = datos{:,8};
-            S21_Fase = datos{:,9};
-            S12_mag_dB = datos{:,11};
-            S12_Fase = datos{:,12};
+            S11_mag_dB = datos(:,2);
+            S11_Fase = datos(:,3);
+            S22_mag_dB = datos(:,5); % Same frequency sampling is assumed for the 4 traces, hence columns 4,7,10 (equal to column 1) are omitted 
+            S22_Fase = datos(:,6);
+            S21_mag_dB = datos(:,8);
+            S21_Fase = datos(:,9);
+            S12_mag_dB = datos(:,11);
+            S12_Fase = datos(:,12);
 
             Spars(1,1,:) = 10.^(S11_mag_dB/20).*exp(1i*S11_Fase*pi/180);  % return linear values
             Spars(1,2,:) = 10.^(S12_mag_dB/20).*exp(1i*S12_Fase*pi/180);  
@@ -267,6 +380,7 @@ function [Spars, freqs, R_car] = readSpars(varargin)
             Spars(2,2,:) = 10.^(S22_mag_dB/20).*exp(1i*S22_Fase*pi/180);  
         end
     end
+    
     fclose(fileId);
 end
 
@@ -278,6 +392,7 @@ function [unidadesfreq, formato, R_car] = headerSnp(fileId)
             break
         end
     end
+    linea_actual = regexprep(linea_actual, ' +\s', ' ');
     inicios = regexp(linea_actual, '\s');       % reads the header, separator = space
     unidadesfreq = linea_actual(inicios(1)+1);  % frequency units
     parametro = linea_actual(inicios(2)+1);     % parameter kind

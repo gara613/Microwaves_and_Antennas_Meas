@@ -10,6 +10,7 @@
 %       - linear: lambda=regularization parameter to control complexity of the model
 %       - polynom: lambda, d=degree of the polynomial
 %       - gaussi: lambda, gammac=bandwidth of the RBFs (gammac = 1/2simga^2)
+%                 (lambda should be a small value ~0.1, whereas gamma should be large ~50)
 %
 % Germán Augusto Ramírez Arroyave
 % Universidad Nacional de Colombia
@@ -77,7 +78,7 @@ function [yhat, rmse] = kernelSpar(x, y, varargin)
         if  noptions>=3
             gammac = varargin{3};   % a.k.a as the bandwidth of the RBFs \gamma = 1/2simga^2 
         else
-            gammac = 0.1; 
+            gammac = 10; 
         end
 %       Straight (naive) implementation of Gaussian Kernel as interpreted by GAR
 %        K = zeros(length(x),length(x));
