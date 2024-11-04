@@ -27,7 +27,7 @@
 % Germán Augusto Ramírez Arroyave
 % Grupo de Investigación en Telecomunicaciones - CMUN (2014)
 
-function [Spars, freqs, R_car] = readSpars(varargin) % 
+function [Spars, freqs, R_car, comments] = readSpars(varargin) % 
     narginchk(1,2);
     filename = char(varargin{1});
     if nargin == 2 % Option is currently used only to indicate that the *.set file to read contains an S11 measurement
@@ -45,7 +45,7 @@ function [Spars, freqs, R_car] = readSpars(varargin) %
 
     %% Reads s1p files 
     if strcmp(lower(parsedname(end)),'s1p')
-        [unidadesfreq, formato, R_car] = headerSnp(fileId);
+        [unidadesfreq, formato, R_car, comments] = headerSnp(fileId);
 
         datos = cell2mat(textscan(fileId,'%f %f %f','CollectOutput',1,'TreatAsEmpty',{'\t'},'EmptyValue',-Inf,'CommentStyle','!'));
 
@@ -393,12 +393,15 @@ function [Spars, freqs, R_car] = readSpars(varargin) %
 end
 
 % Touchstone files header's reading 
-function [unidadesfreq, formato, R_car] = headerSnp(fileId)
+function [unidadesfreq, formato, R_car, comments] = headerSnp(fileId)
+    cont = 0;
     while feof(fileId) == 0
         linea_actual = fgets(fileId);
+        cont = cont+1;
         if strcmp(linea_actual(1),'#');
             break
         end
+        comments{cont,1} = linea_actual;
     end
     linea_actual = regexprep(linea_actual, ' +\s', ' ');
     inicios = regexp(linea_actual, '\s');       % reads the header, separator = space
