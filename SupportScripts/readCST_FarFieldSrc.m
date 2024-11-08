@@ -1,3 +1,5 @@
+%% [ret_field, thetaGrid, phiGrid, P_ant, sim_freq] = readCST_FarFieldSrc(varargin)
+%
 % Routine to read the field pattern in a CST FarField Source (*.ffs) file
 % Format: V3.0 
 %   Phi, Theta, Re(E_Theta), Im(E_Theta), Re(E_Phi), Im(E_Phi)
@@ -12,7 +14,7 @@
 %       * abs_radPat (dB): 10log10( (|E_th|^2 + |E_ph|^2)/(60*Prad) )
 %   - thetaGrid: theta values arranged as a proper matlab grid 
 %   - phiGrid: phi values arranged as a proper matlab grid 
-%   - P_ant: Radiated/Accepted/Stimulated Power
+%   - P_ant: Radiated/Accepted/Stimulated Power/radiation Efficiency/total Efficiency/max realized Gain
 %   - sim_freq: Frequency specified in the file
 % 
 % Uiversidad Nacional de Colombia
@@ -48,12 +50,15 @@ function [ret_field, thetaGrid, phiGrid, P_ant, sim_freq] = readCST_FarFieldSrc(
     phiGrid = reshape(radPat(:,1)*pi/180, Npts.theta, Npts.phi);
     thetaGrid = reshape(radPat(:,2)*pi/180, Npts.theta, Npts.phi);
 
+	multTerm = (1/60)*(1/P_ant.Psource);    %  = 0.5*(sphFac/eta_0), (eta_0 = 120*pi, sphFac = 4*pi)
+
     e_theta = radPat(:,3) + 1i*radPat(:,4);
     e_phi = radPat(:,5) + 1i*radPat(:,6);
-    ret_field.E_Field.E_theta = reshape(e_theta, Npts.theta, Npts.phi);
-    ret_field.E_Field.E_phi = reshape(e_phi, Npts.theta, Npts.phi);
+%     ret_field.E_Field.E_theta = reshape(e_theta, Npts.theta, Npts.phi);
+%     ret_field.E_Field.E_phi = reshape(e_phi, Npts.theta, Npts.phi);
+    ret_field.E_Field.E_theta = sqrt(multTerm)*reshape(e_theta, Npts.theta, Npts.phi);
+    ret_field.E_Field.E_phi = sqrt(multTerm)*reshape(e_phi, Npts.theta, Npts.phi);
 
-	multTerm = (1/60)*(1/P_ant.Psource);    % 0.5*(sphFac/eta_0), (eta_0 = 120*pi, sphFac = 4*pi)
     abs_radPat = multTerm*(e_theta.*conj(e_theta) + e_phi.*conj(e_phi));
     abs_radPat = 10*log10(abs_radPat);
     ret_field.abs_radPat = reshape(abs_radPat, Npts.theta, Npts.phi);
