@@ -9,8 +9,6 @@
 %   - x: structure with fields: time and freq with the signal vector in time and frequency domain
 % Germán Augusto Ramírez Arroyave
 % CMUN - Universidad Nacional de Colombia 2016
-%
-% Modified version
 
 function x=gaussPulse(t,fc,bw,Nfft,option)
     if strcmp(option,'impulse');
